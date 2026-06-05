@@ -29,7 +29,10 @@ services:
   # ONCE before the first `up` to populate infra/wso2is/lib + infra/mysql/initdb.
   mysql:
     image: mysql:8.0
-    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_bin"]
+    # latin1 server default — WSO2 IS dbscripts size indexes for a 1-byte charset
+    # (see infra/mysql/initdb/00-create-databases.sql). utf8mb4 overflows the
+    # InnoDB 3072-byte key limit on wide composite indexes.
+    command: ["--character-set-server=latin1", "--collation-server=latin1_swedish_ci"]
     environment:
       - MYSQL_ROOT_PASSWORD=root
     volumes:

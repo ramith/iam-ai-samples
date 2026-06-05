@@ -44,9 +44,13 @@ fi
 # alphabetical; 00-create-databases.sql ships in the repo and runs first).
 cat_from_image() { docker run --rm --entrypoint /bin/cat "$IS_IMAGE" "$1"; }
 
+# 7.3.0 layout: no uma/ script; new identity/agent/ schema goes in its OWN DB
+# (the [datasource.AgentIdentity] datasource — default ships as H2
+# WSO2AGENTIDENTITY_DB), NOT the identity DB. consent lives in the identity DB
+# (no separate [database.consent] datasource). Root mysql.sql = shared/registry DB.
 declare -a MAP=(
   "10-identity.sql|$IS_HOME/dbscripts/identity/mysql.sql|WSO2_IDENTITY_DB"
-  "20-identity-uma.sql|$IS_HOME/dbscripts/uma/mysql.sql|WSO2_IDENTITY_DB"
+  "20-agent.sql|$IS_HOME/dbscripts/identity/agent/mysql.sql|WSO2_AGENT_DB"
   "30-identity-consent.sql|$IS_HOME/dbscripts/consent/mysql.sql|WSO2_IDENTITY_DB"
   "40-shared.sql|$IS_HOME/dbscripts/mysql.sql|WSO2_SHARED_DB"
 )
