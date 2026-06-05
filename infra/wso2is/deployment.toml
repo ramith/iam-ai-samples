@@ -1,0 +1,49 @@
+# WSO2 IS 7.3.0 — fully-local docker config (see docs/architecture/fully-local-setup-plan.md).
+# Mounted read-only at repository/conf/deployment.toml via the compose volume.
+# This is a SPARSE override file: keys not set here fall back to the product's
+# J2 template defaults baked into the released image.
+
+[server]
+# D5: single hostname reachable from both the browser (/etc/hosts: 127.0.0.1 wso2is)
+# and the containers (docker network alias). Makes iss / auth_url / redirects
+# all https://wso2is:9443/... and mutually consistent.
+hostname = "wso2is"
+node_ip = "127.0.0.1"
+
+[super_admin]
+username = "admin"
+password = "admin"
+create_admin_account = true
+
+[user_store]
+type = "database_unique_id"
+
+# ── Identity DB — OAuth / consent / UMA / identity data ─────────────────────
+[database.identity_db]
+url = "jdbc:mysql://mysql:3306/WSO2_IDENTITY_DB?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+username = "wso2carbon"
+password = "wso2carbon"
+driver = "com.mysql.cj.jdbc.Driver"
+
+[database.identity_db.pool_options]
+maxActive = 100
+maxWait = 10000
+validationQuery = "SELECT 1"
+validationInterval = 30000
+
+# ── Shared DB — registry + config ───────────────────────────────────────────
+[database.shared_db]
+url = "jdbc:mysql://mysql:3306/WSO2_SHARED_DB?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+username = "wso2carbon"
+password = "wso2carbon"
+driver = "com.mysql.cj.jdbc.Driver"
+
+[database.shared_db.pool_options]
+maxActive = 100
+maxWait = 10000
+validationQuery = "SELECT 1"
+validationInterval = 30000
+
+[keystore.primary]
+file_name = "wso2carbon.jks"
+password = "wso2carbon"
