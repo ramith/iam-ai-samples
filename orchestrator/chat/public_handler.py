@@ -55,8 +55,6 @@ def _load_holidays() -> tuple[str, str]:
     kb_lines, bullets = [], []
     for h in cfg.get("holidays", []):
         name = h.get("name", "")
-        if h.get("expected"):
-            name += " (expected)"
         date_str = h.get("date", "")
         kb_lines.append(f"- {date_str}: {name}")
         try:
