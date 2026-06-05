@@ -17,8 +17,8 @@ const COPY = {
   // §1 Login surface
   signinTitle: "Smart Employee Assistant",
   signinSubtitle: "Sign in to ask about your leave, equipment, and team.",
-  signinCta: "Sign in with UAE Pass",
-  signinHelper: "Powered by UAE PASS · الهوية الرقمية",
+  signinCta: "Sign in",
+  signinHelper: "",
   signinCertHint: 'First time? Your browser may show a certificate warning for the development identity server. Choose "Advanced" then "Proceed".',
   sessionExpired: "Your session has expired. Sign in again to continue.",
   signedOut: "Signed out. Agent sessions cleared.",  // 3A.4: confirms the cascade ran without listing receivers / jtis
@@ -2420,7 +2420,7 @@ window.app = { signIn };
     : "";
   var MAX_CHARS = 500;
   var WELCOME =
-    "Hi! I can answer general questions about UAE public holidays, " +
+    "Hi! I can answer general questions about Nigeria public holidays, " +
     "leave policy, and hardware allocation. No sign-in required.";
 
   function el(id) { return document.getElementById(id); }
