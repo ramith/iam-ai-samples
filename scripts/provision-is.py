@@ -392,13 +392,21 @@ def main():
     print("\n[6/6] Writing service .env files")
     shared_secret = secrets.token_hex(20)
     openai_key = os.environ.get("OPENAI_API_KEY", "__SET_WSO2_AI_GATEWAY_KEY__")
+    # Observability: the AI workloads (orchestrator + 2 agents) export OTEL traces
+    # to the WSO2 Agent Manager observability endpoint, authenticating with their
+    # per-workload AMP agent key in a custom header. The endpoint is shared
+    # (configurable via env); the keys rotate, so they're read per-workload from
+    # AMP_KEY_* env (placeholder otherwise — paste the fresh key into the .env).
+    # The MCP servers (hr_server/it_server) are plain resource servers — no AMP.
+    amp_endpoint = os.environ.get("AMP_OTEL_ENDPOINT",
+                                  "https://opentelemetry.obs.dp.cloud.wso2.com/v1/traces")
     common_idp = {
         "WSO2_IS_BASE_URL": IS_INTERNAL_BASE,
         "WSO2_IS_ISSUER": f"{IS_INTERNAL_BASE}/oauth2/token",
         "WSO2_IS_JWKS_URL": f"{IS_INTERNAL_BASE}/oauth2/jwks",
         "IDP_INSECURE_TLS": "1",
         "INTERNAL_REVOKE_SHARED_SECRET": shared_secret,
-        "AMP_OTEL_ENDPOINT": "", "AMP_AGENT_API_KEY": "",
+        "AMP_OTEL_ENDPOINT": amp_endpoint,
     }
     write_env("orchestrator", {**common_idp,
         "ORCHESTRATOR_MCP_CLIENT_ID": mcp_cid, "ORCHESTRATOR_MCP_CLIENT_SECRET": mcp_sec,
@@ -419,6 +427,7 @@ def main():
         "OPENAI_BASE_URL": os.environ.get("OPENAI_BASE_URL", "__SET_WSO2_AI_GATEWAY_BASE_URL__"),
         "OPENAI_API_HEADER": os.environ.get("OPENAI_API_HEADER", "api-key"),
         "OPENAI_API_KEY": openai_key, "OPENAI_MODEL": os.environ.get("OPENAI_MODEL", "gpt-4.1"),
+        "AMP_AGENT_API_KEY": os.environ.get("AMP_KEY_ORCHESTRATOR", "__SET_ORCHESTRATOR_AMP_AGENT_KEY__"),
     })
     write_env("hr_agent", {**common_idp,
         "HR_AGENT_ID": agents["hr"]["agent_id"], "HR_AGENT_SECRET": agents["hr"]["agent_secret"],
@@ -427,7 +436,8 @@ def main():
         "HR_AGENT_REDIRECT_URI": AGENT_REDIRECT,
         "HR_EXPECTED_INBOUND_AUD": mcp_cid,
         "HR_TRUSTED_PEER_AGENTS": agents["orchestrator"]["agent_id"],
-        "HR_CIBA_SCOPE": "openid hr_self_rest"})
+        "HR_CIBA_SCOPE": "openid hr_self_rest",
+        "AMP_AGENT_API_KEY": os.environ.get("AMP_KEY_HR_AGENT", "__SET_HR_AGENT_AMP_AGENT_KEY__")})
     write_env("it_agent", {**common_idp,
         "IT_AGENT_ID": agents["it"]["agent_id"], "IT_AGENT_SECRET": agents["it"]["agent_secret"],
         "IT_AGENT_OAUTH_CLIENT_ID": agents["it"]["client_id"],
@@ -435,7 +445,8 @@ def main():
         "IT_AGENT_REDIRECT_URI": AGENT_REDIRECT,
         "IT_EXPECTED_INBOUND_AUD": mcp_cid,
         "IT_TRUSTED_PEER_AGENTS": agents["orchestrator"]["agent_id"],
-        "IT_CIBA_SCOPE": "openid it_assets_read_rest"})
+        "IT_CIBA_SCOPE": "openid it_assets_read_rest",
+        "AMP_AGENT_API_KEY": os.environ.get("AMP_KEY_IT_AGENT", "__SET_IT_AGENT_AMP_AGENT_KEY__")})
     srv_idp = {"WSO2_IS_BASE_URL": IS_INTERNAL_BASE,
                "AUTH_ISSUER": f"{IS_INTERNAL_BASE}/oauth2/token",
                "JWKS_URL": f"{IS_INTERNAL_BASE}/oauth2/jwks",
