@@ -224,14 +224,13 @@ Headline vars:
 
 ### 4.3 Bring it up
 
-First time (stands up the local IS + configures it):
+First time — **one command** (preflight → prep → infra → provision → fleet → smoke):
 
 ```bash
-./scripts/local-setup.sh                      # once: fetch JDBC driver + WSO2 schema
-docker compose up -d mysql wso2is             # infra tier
-OPENAI_BASE_URL=<gateway-url> OPENAI_API_KEY=<gateway-key> \
-  python3 scripts/provision-is.py             # configure IS + write the 5 .env files
-docker compose up -d --build                  # app fleet
+echo "127.0.0.1 wso2is" | sudo tee -a /etc/hosts   # once: browser → IS hostname
+# optional: bake the WSO2 AI-gateway LLM creds (else chat uses the keyword router)
+export OPENAI_BASE_URL=<gateway-url> OPENAI_API_KEY=<gateway-key>
+python3 scripts/setup.py
 ```
 
 Thereafter (IS state persists in the `mysql-data` volume):

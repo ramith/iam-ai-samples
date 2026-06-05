@@ -48,25 +48,28 @@ outside compose.)
 
 ## Quick Start
 
+**One command** does it all — preflight → driver/schema prep → infra → provision → fleet → smoke:
+
 ```bash
-# 1. one-time: fetch the MySQL JDBC driver + extract the version-matched WSO2 schema
-./scripts/local-setup.sh
+# one-time: let the browser resolve the IS hostname (setup.py fails fast if missing)
+echo "127.0.0.1 wso2is" | sudo tee -a /etc/hosts
 
-# 2. bring up the infra tier (MySQL + WSO2 IS)
-docker compose up -d mysql wso2is
-docker compose logs -f wso2is        # wait for "WSO2 Carbon started"
+# optional: bake the WSO2 AI-gateway LLM creds (chat falls back to the keyword router without them)
+export OPENAI_BASE_URL=<wso2-agent-manager-gateway-url> OPENAI_API_KEY=<gateway-key>
 
-# 3. configure IS for the demo + write the five service .env files
-#    (reuses your shell OPENAI_BASE_URL/OPENAI_API_KEY for the AI-gateway LLM)
-OPENAI_BASE_URL=<wso2-agent-manager-gateway-url> OPENAI_API_KEY=<gateway-key> \
-  python3 scripts/provision-is.py
+python3 scripts/setup.py
+```
 
-# 4. verify the IS config (expect 32/32 PASS)
-IS_BASE_URL=https://localhost:9443 ./scripts/check-is-config.py
+Or run the phases individually:
 
-# 5. build + start the app fleet
-docker compose up -d --build
+```bash
+python3 scripts/setup.py prep        # fetch the MySQL JDBC driver + extract the WSO2 schema
+docker compose up -d mysql wso2is    # infra tier (MySQL + WSO2 IS)
+python3 scripts/setup.py provision   # configure IS + write the five service .env files
+docker compose up -d --build         # app fleet
 python3 scripts/demo-smoke.py        # healthz across the app services
+
+IS_BASE_URL=https://localhost:9443 ./scripts/check-is-config.py   # full IS preflight (32/32)
 ```
 
 Then open **http://localhost:8090** and sign in as a demo user

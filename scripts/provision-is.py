@@ -143,15 +143,22 @@ def ensure_api_resource(api):
     return _j(bd)["id"]
 
 # ── Organisation id (for Organization-audience roles) ────────────────────────
-def org_id():
-    # Read it off any existing Organization-audience role (e.g. the default
-    # "everyone"). The list returns a nested audience: {type, value, display}.
-    st, _, bd = scim_get("/scim2/v2/Roles?count=50")
-    for r in (_j(bd) or {}).get("Resources", []):
+def _org_id_from(resources):
+    for r in resources:
         aud = r.get("audience") or {}
         if (aud.get("type") or "").lower() == "organization" and aud.get("value"):
             return aud["value"]
     return None
+
+def org_id():
+    # Prefer the built-in Organization-audience "everyone" role (deterministic);
+    # fall back to scanning all roles. audience is nested: {type, value, display}.
+    st, _, bd = scim_get("/scim2/v2/Roles?filter=" + urllib.parse.quote("displayName eq everyone"))
+    oid = _org_id_from((_j(bd) or {}).get("Resources", []))
+    if oid:
+        return oid
+    st, _, bd = scim_get("/scim2/v2/Roles?count=200")
+    return _org_id_from((_j(bd) or {}).get("Resources", []))
 
 # ── Roles (SCIM2 v2, Organization audience, permissions = scope names) ───────
 def ensure_role(name, scopes, oid, user_ids):
@@ -207,8 +214,13 @@ def create_app(name, callbacks, grants, *, app_native=False, ciba=False):
     existing = app_id_by_name(name)
     if existing:
         o = app_oidc(existing)
-        log(OK, f"app exists: {name} (client_id {o['clientId']})")
-        return existing, o["clientId"], o.get("clientSecret")
+        cid, csec = o.get("clientId"), o.get("clientSecret")
+        if not cid or not csec:
+            die(f"app '{name}' already exists but IS did not return its clientId/clientSecret "
+                f"(often redacted on read) — a re-run cannot recover the real secret. "
+                f"Destroy the MySQL volume (docker compose down -v) and re-provision from scratch.")
+        log(OK, f"app exists: {name} (client_id {cid})")
+        return existing, cid, csec
 
     oidc = {
         "grantTypes": grants,
@@ -282,14 +294,21 @@ def create_agent(display_name, owner_id):
         nm = (r.get("urn:scim:wso2:agent:schema") or {}).get("DisplayName") or r.get("displayName")
         if nm == display_name:
             aid = r["id"]
+            # The one-shot create-secret is unrecoverable, so rotate to a KNOWN
+            # value and return THAT (so it actually lands in .env — returning
+            # None here would write `*_AGENT_SECRET=None` and break auth).
+            new_secret = _gen_secret()
             st2, _, bd2 = _req("PATCH", f"/scim2/Agents/{aid}",
                                {"schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
                                 "Operations": [{"op": "replace", "path": "password",
-                                                "value": _gen_secret()}]},
+                                                "value": new_secret}]},
                                accept="application/scim+json", ctype="application/scim+json")
-            # PATCH may not echo the secret; fall back to a fresh value we set
+            if st2 not in (200, 204):
+                die(f"rotating secret for existing agent {display_name} (re-run on a non-fresh "
+                    f"IS). Destroy the MySQL volume (docker compose down -v) and re-provision.",
+                    st2, bd2)
             log(WARN, f"agent exists: {display_name} — rotated secret (re-run)")
-            return aid, None
+            return aid, new_secret
     body = {"urn:scim:wso2:agent:schema": {
         "DisplayName": display_name, "Description": f"{display_name} (demo)",
         "Owner": f"{owner_id}@carbon.super"}}
@@ -307,6 +326,13 @@ def _gen_secret(n=16):
 
 # ── .env emission ────────────────────────────────────────────────────────────
 def write_env(service, overlay):
+    # Guard: never persist a None — that means a generated value (e.g. an agent
+    # secret on a botched re-run) went missing, and `KEY=None` would silently
+    # break auth. Fail loudly with remediation instead.
+    none_keys = [k for k, v in overlay.items() if v is None]
+    if none_keys:
+        die(f"refusing to write {service}/.env — missing value(s): {', '.join(none_keys)}. "
+            f"Likely a re-run against a non-fresh IS; destroy the MySQL volume and re-provision.")
     example = ROOT / service / ".env.example"
     out = ROOT / service / ".env"
     lines = example.read_text().splitlines()
