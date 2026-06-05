@@ -25,11 +25,7 @@ Design notes
 
 from __future__ import annotations
 
-import importlib.util
-import pathlib
-import sys
-import types
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,155 +33,12 @@ import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-# ---------------------------------------------------------------------------
-# Module bootstrap
-# ---------------------------------------------------------------------------
-
-_ROOT = pathlib.Path(__file__).parent.parent.parent  # smart-employee-agent/
-
-
-def _ensure_pkg(dotted: str) -> None:
-    """Register a bare package namespace in sys.modules if not already present."""
-    if dotted not in sys.modules:
-        stub = types.ModuleType(dotted)
-        stub.__package__ = dotted
-        stub.__path__ = [str(_ROOT / dotted.replace(".", "/"))]  # type: ignore[assignment]
-        sys.modules[dotted] = stub
-
-
-def _load(dotted: str, rel: str) -> types.ModuleType:
-    """Load a .py file under *dotted* name; skip if already present."""
-    if dotted in sys.modules:
-        return sys.modules[dotted]
-    path = _ROOT / rel
-    spec = importlib.util.spec_from_file_location(dotted, path)
-    assert spec and spec.loader, f"Cannot load {path}"
-    mod = importlib.util.module_from_spec(spec)
-    mod.__package__ = dotted.rsplit(".", 1)[0] if "." in dotted else ""
-    sys.modules[dotted] = mod
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    return mod
-
-
-# ── Package namespaces ────────────────────────────────────────────────────────
-
-for _pkg in (
-    "common",
-    "common.auth",
-    "common.a2a",
-    "common.logging",
-    "it_agent",
-    "it_agent.a2a",
-    "it_agent.ciba",
-    "it_agent.mcp",
-):
-    _ensure_pkg(_pkg)
-
-# ── Real common modules ───────────────────────────────────────────────────────
-
-_load("common.auth.models", "common/auth/models.py")
-_load("common.auth.errors", "common/auth/errors.py")
-_load("common.auth.peer_trust", "common/auth/peer_trust.py")
-_load("common.a2a.jsonrpc", "common/a2a/jsonrpc.py")
-_load("common.a2a.models", "common/a2a/models.py")
-_load("common.logging.correlation", "common/logging/correlation.py")
-
-# ── jwt_validator stub (PyJWT may not be installed in CI) ─────────────────────
-
-if "common.auth.jwt_validator" not in sys.modules:
-    from dataclasses import dataclass as _dc, field as _f
-
-    _jv_mod = types.ModuleType("common.auth.jwt_validator")
-    _jv_mod.__package__ = "common.auth"
-
-    @_dc(frozen=True, slots=True)
-    class _ValidatorConfig:  # type: ignore[no-redef]
-        expected_iss: str
-        jwks_url: str
-        expected_aud: str | None = None
-        required_scopes: frozenset = _f(default_factory=frozenset)
-        leeway_seconds: int = 30
-        insecure_tls: bool = False
-
-    @_dc
-    class _JWKSCache:  # type: ignore[no-redef]
-        jwks_url: str
-        ttl_seconds: int = 3600
-        insecure_tls: bool = False
-
-    async def _validate(token, config, *, jwks_cache=None):  # type: ignore[return]
-        raise RuntimeError("jwt_validator stub: patch validate before use")
-
-    _jv_mod.ValidatorConfig = _ValidatorConfig  # type: ignore[attr-defined]
-    _jv_mod.JWKSCache = _JWKSCache  # type: ignore[attr-defined]
-    _jv_mod.validate = _validate  # type: ignore[attr-defined]
-    sys.modules["common.auth.jwt_validator"] = _jv_mod
-
-_load("common.a2a.server", "common/a2a/server.py")
-
-# ── Load real common modules that it_agent/main.py imports at module level ────
-# Must be registered before any stub for these names, and before loading
-# it_agent.config or it_agent.main.
-#
-# Load order: models → errors → wso2_is_client → actor_token_provider →
-#   ciba_client → binding_messages → mcp/client
-
-_load("common.auth.wso2_is_client", "common/auth/wso2_is_client.py")
-_load("common.auth.actor_token_provider", "common/auth/actor_token_provider.py")
-_load("common.auth.ciba_client", "common/auth/ciba_client.py")
-_load("common.auth.binding_messages", "common/auth/binding_messages.py")
-
-# ── Stub it_agent.mcp.client (only used at runtime, not at import time in main)
-
-if "it_agent.mcp.client" not in sys.modules:
-    _mcp_stub = types.ModuleType("it_agent.mcp.client")
-    _mcp_stub.__package__ = "it_agent.mcp"
-
-    from dataclasses import dataclass as _dc2, field as _f2
-
-    @_dc2(frozen=True, slots=True)
-    class _ITMcpClientConfig:  # type: ignore[no-redef]
-        base_url: str
-        timeout_seconds: float = 30.0
-
-    class _ITMcpClient:  # type: ignore[no-redef]
-        def __init__(self, config: object) -> None:  # type: ignore[override]
-            pass
-
-        async def aclose(self) -> None:
-            pass
-
-    _mcp_stub.ITMcpClientConfig = _ITMcpClientConfig  # type: ignore[attr-defined]
-    _mcp_stub.ITMcpClient = _ITMcpClient  # type: ignore[attr-defined]
-    sys.modules["it_agent.mcp.client"] = _mcp_stub
-
-# it_agent.config needs ITAgentConfig exported; load the real file.
-_load("it_agent.config", "it_agent/config.py")
-
-# it_agent.ciba.orchestrator needs ITDispatcher + ITDispatcherDeps.
-if "it_agent.ciba.orchestrator" not in sys.modules:
-    _oc = types.ModuleType("it_agent.ciba.orchestrator")
-    _oc.__package__ = "it_agent.ciba"
-
-    class _ITDispatcher:  # type: ignore[no-redef]
-        """Sentinel replaced by _FakeITDispatcher in tests."""
-
-    _oc.ITDispatcher = _ITDispatcher  # type: ignore[attr-defined]
-    _oc.ITDispatcherDeps = object  # type: ignore[attr-defined]
-    sys.modules["it_agent.ciba.orchestrator"] = _oc
-
-_load("it_agent.a2a.handler", "it_agent/a2a/handler.py")
-
-# Now load the module under test.
-_load("it_agent.main", "it_agent/main.py")
-
-# ---------------------------------------------------------------------------
-# Imports after bootstrap
-# ---------------------------------------------------------------------------
-
-from it_agent.a2a.handler import ITA2AHandlerDeps  # noqa: E402
-from it_agent.config import ITAgentConfig  # noqa: E402
-from it_agent.main import create_app  # noqa: E402
+# Post-flatten, it_agent/ + common/ are real top-level packages — import normally.
+# (The former _load / _ensure_pkg bootstrap was a pre-flatten relic that registered
+# bare namespace + module stubs in sys.modules, polluting the joint test suite.)
+from it_agent.a2a.handler import ITA2AHandlerDeps
+from it_agent.config import ITAgentConfig
+from it_agent.main import create_app
 
 # ---------------------------------------------------------------------------
 # Shared helpers / fixtures

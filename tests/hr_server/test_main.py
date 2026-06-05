@@ -29,149 +29,18 @@ via HRMcpToolRouterDeps) and test_validators.py (which mocks JWKSCache).
 
 from __future__ import annotations
 
-import importlib.util
 import logging
-import pathlib
-import sys
-import types as _types
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-# ---------------------------------------------------------------------------
-# Path roots
-# ---------------------------------------------------------------------------
-
-_ROOT = pathlib.Path(__file__).parent.parent.parent  # smart-employee-agent/
-
-
-def _ensure_pkg(dotted: str, rel_dir: str | None = None) -> None:
-    """Register a bare package namespace in sys.modules if not already present."""
-    if dotted in sys.modules:
-        return
-    stub = _types.ModuleType(dotted)
-    stub.__package__ = dotted
-    path = rel_dir or dotted.replace(".", "/")
-    stub.__path__ = [str(_ROOT / path)]  # type: ignore[assignment]
-    sys.modules[dotted] = stub
-
-
-def _load(dotted: str, rel: str) -> _types.ModuleType:
-    """Load a single .py file under *dotted* name, bypassing __init__.py."""
-    if dotted in sys.modules:
-        return sys.modules[dotted]
-    spec = importlib.util.spec_from_file_location(dotted, _ROOT / rel)
-    assert spec and spec.loader, f"Cannot find {rel}"
-    mod = importlib.util.module_from_spec(spec)
-    mod.__package__ = dotted.rsplit(".", 1)[0] if "." in dotted else ""
-    sys.modules[dotted] = mod
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    return mod
-
-
-# ---------------------------------------------------------------------------
-# Bootstrap package namespaces
-# ---------------------------------------------------------------------------
-
-for _pkg, _rel in (
-    ("common", None),
-    ("common.auth", None),
-    ("common.logging", None),
-    ("hr_server", "hr_server"),
-    ("hr_server.auth", "hr_server/auth"),
-    ("hr_server.mcp", "hr_server/mcp"),
-):
-    _ensure_pkg(_pkg, _rel)
-
-# ---------------------------------------------------------------------------
-# Load modules that have NO jwt dependency
-# ---------------------------------------------------------------------------
-
-_errors_mod = _load("common.auth.errors", "common/auth/errors.py")
-_wso2_is_client_mod = _load("common.auth.wso2_is_client", "common/auth/wso2_is_client.py")
-_correlation_mod = _load("common.logging.correlation", "common/logging/correlation.py")
-_redaction_mod = _load("common.logging.redaction", "common/logging/redaction.py")
-_hr_config_mod = _load("hr_server.config", "hr_server/config.py")
-
-# ---------------------------------------------------------------------------
-# Stub hr_server.auth.validators  (bypasses jwt dependency)
-# ---------------------------------------------------------------------------
-
-class _MockHRValidator:
-    """Minimal validator stub: log_startup_assertion emits an INFO log."""
-
-    def __init__(self, expected_aud: str) -> None:
-        self._expected_aud = expected_aud
-
-    def log_startup_assertion(self) -> None:
-        logging.getLogger("hr_server.auth.validators").info(
-            "token_validator.startup expected_aud=%s trusted_act_subs=%s",
-            self._expected_aud,
-            frozenset(),
-        )
-
-    def attach_revocation(self, state) -> None:  # noqa: D401, ARG002 — Sprint 3 3A.3 stub
-        """No-op for create_app() smoke tests; real wiring is in validator."""
-        return None
-
-
-class _MockHRValidatorClass:
-    """Mimics the HRServerTokenValidator class (from_config classmethod)."""
-
-    @classmethod
-    def from_config(cls, server_config: object) -> "_MockHRValidator":
-        return _MockHRValidator(expected_aud=getattr(server_config, "expected_aud", ""))
-
-
-_validators_stub = _types.ModuleType("hr_server.auth.validators")
-_validators_stub.__package__ = "hr_server.auth"
-_validators_stub.HRServerTokenValidator = _MockHRValidatorClass  # type: ignore[attr-defined]
-sys.modules["hr_server.auth.validators"] = _validators_stub
-
-# ---------------------------------------------------------------------------
-# Stub hr_server.mcp.tools  (build_hr_mcp_router returns a plain APIRouter)
-# ---------------------------------------------------------------------------
-
-def _stub_build_hr_mcp_router(deps: object) -> APIRouter:  # noqa: ARG001
-    """Return a minimal router with the three expected tool route paths."""
-    router = APIRouter()
-
-    @router.post("/get_leave_balance")
-    async def _get_leave_balance() -> dict:
-        return {}
-
-    @router.post("/get_leave_history")
-    async def _get_leave_history() -> dict:
-        return {}
-
-    @router.post("/approve_leave")
-    async def _approve_leave() -> dict:
-        return {}
-
-    return router
-
-
-class _StubHRMcpToolRouterDeps:
-    def __init__(self, *, validator: object) -> None:
-        self.validator = validator
-
-
-_tools_stub = _types.ModuleType("hr_server.mcp.tools")
-_tools_stub.__package__ = "hr_server.mcp"
-_tools_stub.build_hr_mcp_router = _stub_build_hr_mcp_router  # type: ignore[attr-defined]
-_tools_stub.HRMcpToolRouterDeps = _StubHRMcpToolRouterDeps  # type: ignore[attr-defined]
-sys.modules["hr_server.mcp.tools"] = _tools_stub
-
-# ---------------------------------------------------------------------------
-# NOW load main.py  (its imports are satisfied by stubs above)
-# ---------------------------------------------------------------------------
-
-_hr_main_mod = _load("hr_server.main", "hr_server/main.py")
-
-HRServerConfig: type = _hr_config_mod.HRServerConfig
-create_app = _hr_main_mod.create_app
+# Post-flatten, hr_server/ + common/ are real top-level packages — import normally.
+# (The former _load/_ensure_pkg + sys.modules stubs of validators/mcp.tools polluted
+# the joint suite. create_app uses the REAL validator + MCP router; jwt is installed.)
+from hr_server.config import HRServerConfig
+from hr_server.main import create_app
 
 # ---------------------------------------------------------------------------
 # Minimal env dict — avoids touching os.environ

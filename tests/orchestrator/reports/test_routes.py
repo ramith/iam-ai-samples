@@ -323,9 +323,17 @@ def test_a7_reject_dispatches_with_reason() -> None:
         assert body_ok["ok"] is True
         assert body_ok["agent_id"] == "hr_agent"
         assert body_ok["request_id"] == "rid-reject-2"
-        # Allow the background task to run.
+        # Allow the background task to run (robust to "no current event loop"
+        # on py3.11+ — get_event_loop() raises if a prior async test closed it).
         import asyncio as _asyncio
-        _asyncio.get_event_loop().run_until_complete(_asyncio.sleep(0))
+        try:
+            _loop = _asyncio.get_event_loop()
+            if _loop.is_closed():
+                raise RuntimeError
+        except RuntimeError:
+            _loop = _asyncio.new_event_loop()
+            _asyncio.set_event_loop(_loop)
+        _loop.run_until_complete(_asyncio.sleep(0))
         # Captured the synthetic tool_call.
         assert captured.get("tool_id") == "hr.reject_leave"
         assert captured.get("args", {}).get("leave_id") == "LR001"

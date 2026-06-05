@@ -39,6 +39,10 @@ _ASSET_CATALOGUE: List[Dict] = [
     {"asset_id": "PHN-IP15-001", "model": "iPhone 15 Pro", "type": "phone", "available_count": 4},
 ]
 
+#: Pristine catalogue seed. ``record_issuance`` decrements ``available_count``
+#: in place, so ``reset_data()`` restores the counts from this snapshot.
+_SEED_ASSET_CATALOGUE: List[Dict] = copy.deepcopy(_ASSET_CATALOGUE)
+
 
 def get_asset_catalogue(asset_type: str | None = None) -> List[Dict]:
     """Return the asset catalogue, optionally filtered by asset_type."""
@@ -151,11 +155,14 @@ users: Dict[str, Dict] = {}
 
 
 def reset_data() -> None:
-    """Reset all stores. Asset seed re-applied; user data cleared."""
+    """Reset all stores. Asset seed + catalogue re-applied; user data cleared."""
     global assets, users
     prior_users = len(users) if users else 0
     assets = copy.deepcopy(_SEED_ASSETS)
     users = {}
+    # record_issuance() decrements available_count in place — restore the
+    # pristine catalogue counts so the store is FULLY reset (not just rows).
+    _ASSET_CATALOGUE[:] = copy.deepcopy(_SEED_ASSET_CATALOGUE)
     if prior_users:
         logger.warning(
             "[STORE RESET] IT data reset — cleared %d user(s); seed assets re-applied",
