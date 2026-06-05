@@ -12,66 +12,64 @@
 
 :root {
   /* Canvas / surfaces */
-  --bg:            #f6f8fa;
+  --bg:            #f3f5ef;
   --surface:       #ffffff;
-  --surface-alt:   #f6f8fa;
-  --border:        #d1d9e0;
-  --border-strong: #c2c8cf;
-  --border-muted:  #d8dee4;
+  --surface-alt:   #eef1e8;
+  --border:        #e4e7dd;
+  --border-strong: #d2d7c8;
+  --border-muted:  #edf0e8;
 
-  /* UAE palette */
-  --uae-red:       #EF3F26;
-  --uae-green:     #00843D;
+  /* Brand palette */
 
   /* Foreground */
-  --text:          #1f2328;
-  --text-muted:    #59636e;
-  --text-subtle:   #818b98;
+  --text:          #2b2e29;
+  --text-muted:    #62665b;
+  --text-subtle:   #6f7464;
 
   /* Accent (GitHub blue) */
-  --primary:       #0969da;
-  --primary-hover: #0860ca;
-  --primary-soft:  #ddf4ff;
-  --primary-border:#54aeff;
+  --primary:       #3a69a5;
+  --primary-hover: #335d94;
+  --primary-soft:  #e8eff7;
+  --primary-border:#a9c2e2;
 
   /* Success (GitHub green) */
-  --success:       #1a7f37;
-  --success-emph:  #1f883d;
-  --success-soft:  #dafbe1;
-  --success-border:#4ac26b;
+  --success:       #3f7340;
+  --success-emph:  #427742;
+  --success-soft:  #e6f0e4;
+  --success-border:#aacba8;
 
   /* Danger (GitHub red) */
-  --danger:        #cf222e;
-  --danger-hover:  #a40e26;
-  --danger-soft:   #ffebe9;
-  --danger-border: #ff818a;
+  --danger:        #b23a30;
+  --danger-hover:  #a23a32;
+  --danger-soft:   #fae8e6;
+  --danger-border: #e6a59f;
 
   /* Attention / amber (write-action consent, expired) */
-  --amber:         #9a6700;
-  --amber-soft:    #fff8c5;
-  --amber-border:  #d4a72c;
-  --warning:       #9a6700;
-  --warning-soft:  #fff8c5;
+  --amber:         #8a5e1e;
+  --amber-soft:    #fbf1da;
+  --amber-border:  #e1bd79;
+  --warning:       #b07a28;
+  --warning-soft:  #fbf1da;
 
   /* Agent colors — Primer-ish palette */
-  --color-hr:           #1f883d;
-  --color-hr-soft:      #dafbe1;
-  --color-it:           #8250df;
-  --color-it-soft:      #fbefff;
-  --color-orchestrator: #59636e;
+  --color-hr:           #7d9466;
+  --color-hr-soft:      #eef1e3;
+  --color-it:           #5f72a0;
+  --color-it-soft:      #e9edf6;
+  --color-orchestrator: #8a8f7e;
 
   /* Red for error widget */
-  --red-border:    #ff818a;
-  --red-soft:      #ffebe9;
+  --red-border:    #e6a59f;
+  --red-soft:      #fae8e6;
 
   /* Layout */
   --header-h:      56px;
-  --radius:        6px;
+  --radius:        8px;
   --radius-sm:     6px;
-  --radius-lg:     12px;
-  --shadow-sm:     0 1px 0 rgba(31,35,40,0.04);
-  --shadow:        0 1px 3px rgba(31,35,40,0.12), 0 1px 2px rgba(31,35,40,0.08);
-  --shadow-lg:     0 8px 24px rgba(66,74,83,0.12);
+  --radius-lg:     14px;
+  --shadow-sm:     0 1px 0 rgba(45,55,40,0.04);
+  --shadow:        0 1px 3px rgba(45,55,40,0.08), 0 1px 2px rgba(45,55,40,0.05);
+  --shadow-lg:     0 8px 24px rgba(45,55,40,0.10);
 
   /* Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
@@ -129,32 +127,34 @@ textarea, input {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, #EF3F26 0%, #00843D 35%, #f0f0f0 65%, #1a1a1a 100%);
+  background: linear-gradient(180deg, #edf1e7 0%, #f7f9f4 100%);
 }
 
 .signin-box {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1.75rem 2rem;
+  padding: 2.5rem 2.25rem;
   box-shadow: var(--shadow-lg);
-  max-width: 400px;
+  max-width: 420px;
   width: 90%;
   text-align: center;
   overflow: hidden;
 }
 
 .signin-heading {
-  font-size: 1.25rem;
+  font-size: 1.45rem;
   font-weight: 600;
-  margin-bottom: 0.375rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
   color: var(--text);
 }
 
 .signin-subtitle {
   color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 1.625rem;
 }
 
 .signin-notice {
@@ -184,72 +184,26 @@ textarea, input {
 
 .signin-btn {
   width: 100%;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin-bottom: 0.625rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin: 0.25rem auto 0.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-}
-
-.signin-btn-uaepass {
-  background: none;
+  background: var(--primary);
+  color: #fff;
   border: none;
-  padding: 0;
-  margin: 10px auto;
+  border-radius: 8px;
   cursor: pointer;
-
-  display: flex;
-  justify-content: center;
-  align-items: center;
-
-  width: 100%;
+  box-shadow: 0 1px 2px rgba(58, 105, 165, 0.25);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.signin-btn-uaepass:hover {
-  opacity: 0.88;
-}
-
-.signin-btn-uaepass:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.uae-pass-btn-img {
-  display: block;
-  width: 250px;
-  height: 50px;
-  max-width: 100%;
-}
-
-.signin-powered-by {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  font-size: 1rem;
-  color: var(--text-subtle);
-  margin-bottom: 0;
-}
-
-.signin-powered-by strong {
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-
-.uae-pass-attr-icon {
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
-}
-
-.signin-powered-arabic {
-  opacity: 0.65;
-  font-size: 0.7rem;
-}
+.signin-btn:hover { background: var(--primary-hover); }
+.signin-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .signin-error {
   margin-top: 0.875rem;
@@ -297,10 +251,10 @@ textarea, input {
   width: 100%;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Toggle header — deep UAE green for visual harmony with flag gradient and sign-in button */
+/* Toggle header — clean pale-sage bar with charcoal text */
 .pia-toggle {
   position: relative; /* anchors the absolute chevron */
   width: 100%;
@@ -308,16 +262,16 @@ textarea, input {
   align-items: center;
   justify-content: center;
   padding: 0.75rem 2.5rem; /* side padding leaves room for chevron */
-  background: #006430;
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.10);
+  background: #dde4cd;
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg); /* full rounding when collapsed */
   cursor: pointer;
   font-family: var(--font-sans);
   text-align: center;
   transition: background 0.15s, border-radius 0.01s 0.3s;
 }
-.pia-toggle:hover { background: #00843D; }
+.pia-toggle:hover { background: #d2dcbf; }
 
 .pia-widget--open .pia-toggle {
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
@@ -347,7 +301,7 @@ textarea, input {
 
 .pia-toggle-subtitle {
   font-size: 0.7rem;
-  opacity: 0.65;
+  color: var(--text-muted);
   line-height: 1.3;
 }
 
@@ -404,14 +358,14 @@ textarea, input {
 }
 
 .public-chat-msg--bot {
-  background: #f0f4f8;
+  background: var(--surface-alt);
   color: var(--text);
   border-bottom-left-radius: 2px;
   align-self: flex-start;
 }
 
 .public-chat-msg--user {
-  background: #00843D;
+  background: var(--primary);
   color: #fff;
   border-bottom-right-radius: 2px;
   align-self: flex-end;
@@ -430,7 +384,7 @@ textarea, input {
   align-items: center;
   gap: 0.3rem;
   padding: 0.5rem 0.75rem;
-  background: #f0f4f8;
+  background: var(--surface-alt);
   border-radius: var(--radius);
   border-bottom-left-radius: 2px;
   align-self: flex-start;
@@ -474,21 +428,21 @@ textarea, input {
 }
 .public-chat-input:focus {
   outline: none;
-  border-color: #00843D;
-  box-shadow: 0 0 0 3px rgba(0,132,61,0.18);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(58,105,165,0.18);
 }
 
 .public-chat-send {
   flex-shrink: 0;
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
-  background: #00843D;
+  background: var(--primary);
   color: #fff;
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
 }
-.public-chat-send:hover   { background: #006d32; }
+.public-chat-send:hover   { background: var(--primary-hover); }
 .public-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .public-chat-footer {
@@ -512,11 +466,10 @@ textarea, input {
 
 #app-header {
   height: var(--header-h);
-  /* Subtle warmth: a barely-there top-to-bottom lift instead of flat white. */
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  /* Flat pale-sage header bar — clean, calm, matches the product surface. */
+  background: #e7ecd9;
   border-bottom: 1px solid var(--border);
-  border-top: 3px solid var(--uae-red);
-  box-shadow: 0 1px 0 rgba(31, 35, 40, 0.04), 0 1px 3px rgba(31, 35, 40, 0.05);
+  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -527,7 +480,7 @@ textarea, input {
   z-index: 10;
 }
 
-/* Brand accent strip — a thin two-tone bar in the product's own blue→green.
+/* Brand accent strip — a thin accent line in the product's primary blue.
    Muted brand colors, 3px: a polished-product signature, not a flashy band. */
 #app-header::before {
   content: "";
@@ -536,7 +489,7 @@ textarea, input {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--primary) 0%, var(--success-emph) 100%);
+  background: var(--primary);
 }
 
 .header-left {
@@ -554,13 +507,13 @@ textarea, input {
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: linear-gradient(135deg, var(--primary) 0%, #1f6feb 100%);
+  background: var(--primary);
   color: #ffffff;
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(9, 105, 218, 0.25);
+  box-shadow: var(--shadow-sm);
 }
 
 .product-name,
@@ -1238,8 +1191,8 @@ textarea, input {
 }
 
 @keyframes approve-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(9, 105, 218, 0.3); }
-  50%       { box-shadow: 0 0 0 5px rgba(9, 105, 218, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 115, 64, 0.3); }
+  50%       { box-shadow: 0 0 0 5px rgba(63, 115, 64, 0); }
 }
 
 .consent-widget--expired .cw-approve-btn,
@@ -1398,7 +1351,7 @@ textarea, input {
   align-self: flex-end;
   border: 1px solid rgba(27,31,36,0.15);
 }
-.composer-send:hover  { background: #1a7f37; }
+.composer-send:hover  { background: var(--primary-hover); }
 .composer-send:disabled { background: var(--border-strong); cursor: not-allowed; border-color: var(--border-strong); }
 
 .composer-hints {
@@ -1437,7 +1390,7 @@ textarea, input {
   transition: background 0.15s;
   line-height: 1.5;
 }
-.btn-primary:hover { background: #1a7f37; }
+.btn-primary:hover { background: var(--primary-hover); }
 .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .btn-outline {
@@ -2056,7 +2009,7 @@ textarea, input {
   border-color: var(--success-border);
 }
 .btn-approve:hover {
-  background: var(--success-border);
+  background: var(--success-emph);
   color: #fff;
   border-color: var(--success);
 }
@@ -2067,7 +2020,7 @@ textarea, input {
   border-color: var(--danger-border);
 }
 .btn-reject:hover {
-  background: var(--danger-border);
+  background: var(--danger);
   color: #fff;
   border-color: var(--danger);
 }
