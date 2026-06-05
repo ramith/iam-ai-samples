@@ -97,11 +97,11 @@ def _make_app(reply: str = "Test reply.", *, fail: bool = False) -> TestClient:
 
 
 def test_valid_message_returns_200_with_reply() -> None:
-    client = _make_app("UAE National Day is 2 December.")
+    client = _make_app("Independence Day is 1 October.")
     resp = client.post("/public/chat", json={"message": "when is national day?"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["reply"] == "UAE National Day is 2 December."
+    assert body["reply"] == "Independence Day is 1 October."
 
 
 def test_empty_message_returns_422() -> None:

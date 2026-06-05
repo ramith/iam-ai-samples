@@ -92,9 +92,9 @@ def _make_failing_llm() -> MagicMock:
 
 @pytest.mark.parametrize("msg", [
     "when is the next public holiday?",
-    "UAE national day date",
+    "independence day date",
     "when is Eid this year?",
-    "is there a day off for commemoration day?",
+    "is there a day off for democracy day?",
 ])
 def test_static_fallback_holiday(msg: str) -> None:
     result = _static_fallback(msg)
@@ -166,7 +166,7 @@ async def test_handler_no_llm_returns_static() -> None:
 @pytest.mark.asyncio
 async def test_handler_with_llm_returns_llm_response() -> None:
     """With a working LLM, the LLM reply is returned verbatim."""
-    expected = "UAE National Day is on 2 December."
+    expected = "Independence Day is on 1 October."
     handler = PublicInfoHandler(llm_client=_make_llm(expected))
     result = await handler.answer("when is national day?")
     assert result == expected
@@ -202,6 +202,6 @@ def test_system_prompt_override_prohibition() -> None:
 def test_system_prompt_contains_all_three_kb_sections() -> None:
     handler = PublicInfoHandler()
     prompt = handler._build_system_prompt()
-    assert "UAE Public Holidays" in prompt
+    assert "Nigeria Public Holidays" in prompt
     assert "Leave Policy" in prompt
     assert "Hardware Allocation Policy" in prompt
