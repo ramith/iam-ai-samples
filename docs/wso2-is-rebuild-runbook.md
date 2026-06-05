@@ -1,5 +1,12 @@
 # Fresh WSO2 IS deployment — smart-employee-agent (rebuild runbook)
 
+> **On the `fully-local-setup` branch this manual runbook is superseded.** The
+> local demo runs WSO2 IS as a docker container and configures it **automatically**
+> via `scripts/provision-is.py` (REST/SCIM). See
+> [`architecture/fully-local-setup-plan.md`](architecture/fully-local-setup-plan.md)
+> and [`architecture/fully-local-is-provisioning-spec.md`](architecture/fully-local-is-provisioning-spec.md).
+> This document remains the reference for a **remote / production** IS set up by hand.
+
 **Purpose:** stand up a brand-new WSO2 Identity Server for this POC from scratch (e.g. after a broken/reconfigured box). Reverse-engineered from `docs/wso2-is-setup.md`, `scripts/check-is-config.py`, `common/auth/*`, the three service `config.py` files, `docker-compose.yml`, and the spike docs. Where it differs from `docs/wso2-is-setup.md`, this file is the corrected version (redirect URIs, the 3rd IT scope, back-channel-logout config, role-scope matrix).
 
 **Target:** WSO2 Identity Server **7.3.x** (the project text says 7.2; the runbook is version-agnostic and also works on the 7.3.0 RC). Console at `https://<HOST>:9443/console`, tenant `carbon.super`, default admin `admin/admin`.

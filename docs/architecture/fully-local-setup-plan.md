@@ -20,7 +20,7 @@ design is OpenAI (operator-supplied key).
 | D1 | IS image | **`wso2/wso2is:7.3.0`** (GA, Docker Hub) | Released (not the RC the remote runs); 7.3 is the lineage the code is already tuned to (e.g. the `flowStatus=SUCCESS_COMPLETED` short-circuit in milestone-plan §0.1). Released 2026-06-02. |
 | D2 | IS database | **MySQL 8 container + named volume** | Operator choice; matches the rebuild-runbook "recommended" path; survives restarts; prod-like. |
 | D3 | IS config provisioning | **Automated provisioner script** (REST/SCIM/DCR) | Reproducible `up`; reuses the API surface `check-is-config.py` + `identity_server_apis/*.yaml` already speak. |
-| D4 | LLM | **OpenAI direct** (operator key), AMP gateway + OTEL dropped | Operator will supply a real OpenAI key. The keyword router stays as the automatic fallback. |
+| D4 | LLM | **OpenAI via the WSO2 Agent Manager (SaaS) AI Gateway** (OpenAI-compatible); OTEL/AMP-agent-key dropped | The gateway issues `OPENAI_BASE_URL` + `OPENAI_API_KEY` (sent in the `api-key` header, not Bearer) — NOT `api.openai.com`. The keyword router stays as the automatic fallback. This is the one deliberately-non-local dependency. |
 | D5 | IS hostname strategy | **Single hostname `wso2is`** resolvable from both browser and containers | Avoids splitting front/back-channel URLs (no code change). See §3. |
 
 The released image is used **as-is**; config (`deployment.toml`), the MySQL JDBC
@@ -99,12 +99,12 @@ orchestrator's own browser-facing URLs (`ORCHESTRATOR_MCP_CLIENT_REDIRECT_URI`,
 Each stage produces a committable artifact and is independently runnable.
 
 - **Stage 0 — this plan.** ✅
-- **Stage 1 — Infra containers.** `mysql` + `wso2is` services in compose; MySQL
+- **Stage 1 — Infra containers.** ✅ (IS 7.3.0 GA boots clean on MySQL; verified) `mysql` + `wso2is` services in compose; MySQL
   datasource `deployment.toml`; JDBC driver + schema bootstrap via
   `scripts/local-setup.sh` (pulls the driver, extracts version-matched dbscripts
   from the image into MySQL init). Gate: IS comes up healthy against MySQL; Console
   reachable at `https://wso2is:9443/console`.
-- **Stage 2 — Automated provisioner.** `scripts/provision-is.py`: idempotent
+- **Stage 2 — Automated provisioner.** ✅ `scripts/provision-is.py` (check-is-config 32/32 PASS). Idempotent
   creation of the 2 OAuth apps, 3 agents (+ backing apps, CIBA-external,
   subject=email, role-audience=Organization, API subscriptions), 2 API resources
   (8 scopes), 2 roles (scope matrix), 2 users (`username==email`), multi-attribute
@@ -112,9 +112,11 @@ Each stage produces a committable artifact and is independently runnable.
   `http://localhost:8090/`. Writes IS-generated client IDs/secrets + agent
   UUIDs/secrets into the 5 service `.env` files. Gate: `check-is-config.py` all PASS.
 - **Stage 3 — Re-point fleet + drop cloud.** App services → `wso2is:9443`;
-  `LLM_FALLBACK_MODE=llm` + OpenAI-direct (`OPENAI_BASE_URL=https://api.openai.com/v1`,
-  correct auth header); drop `AMP_AGENT_API_KEY` / `AMP_OTEL_ENDPOINT`; in-network
-  BCL. Gate: full fleet healthy via `demo-smoke.py`.
+  `LLM_FALLBACK_MODE=llm` + LLM via the **WSO2 Agent Manager AI Gateway**
+  (`OPENAI_BASE_URL`=gateway, `OPENAI_API_HEADER=api-key`); drop `AMP_AGENT_API_KEY`
+  / `AMP_OTEL_ENDPOINT`; in-network BCL (`orchestrator:8080/backchannel-logout`).
+  Done as the config-cleanup pass: compose stale-default overrides removed,
+  root `.env` cleaned, templates/docs updated. Gate: full fleet healthy via `demo-smoke.py`.
 - **Stage 4 — E2E + docs.** Sign in `employee@example.com` → UC-03 dual-specialist
   query → 2× CIBA approve → logout cascade. Update `DOCKER.md` / `README` / add a
   local runbook. Commit + push.

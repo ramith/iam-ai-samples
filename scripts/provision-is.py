@@ -16,9 +16,10 @@ for a fresh instance though (destroy the mysql volume first for a clean slate).
 
 Usage:
     python3 scripts/provision-is.py                 # provision + write .env files
-    IS_BASE_URL=https://localhost:9443 \
-    IS_ADMIN_USER=admin IS_ADMIN_PASS=admin \
-    OPENAI_API_KEY=sk-... python3 scripts/provision-is.py
+    # Bake the WSO2 Agent Manager AI Gateway creds (OpenAI-compatible) while provisioning:
+    OPENAI_BASE_URL=https://<wso2-agent-manager-gateway>/<route> \
+    OPENAI_API_KEY=<gateway-key> \
+    IS_ADMIN_USER=admin IS_ADMIN_PASS=admin python3 scripts/provision-is.py
 
 Talks to IS at IS_BASE_URL (host-facing, default https://localhost:9443) but
 writes WSO2_IS_BASE_URL=https://wso2is:9443 (container-facing) into the .env files.
@@ -390,7 +391,7 @@ def main():
 
     print("\n[6/6] Writing service .env files")
     shared_secret = secrets.token_hex(20)
-    openai_key = os.environ.get("OPENAI_API_KEY", "__SET_YOUR_OPENAI_API_KEY__")
+    openai_key = os.environ.get("OPENAI_API_KEY", "__SET_WSO2_AI_GATEWAY_KEY__")
     common_idp = {
         "WSO2_IS_BASE_URL": IS_INTERNAL_BASE,
         "WSO2_IS_ISSUER": f"{IS_INTERNAL_BASE}/oauth2/token",
@@ -410,8 +411,14 @@ def main():
         "IT_AGENT_OAUTH_CLIENT_ID": agents["it"]["client_id"],
         "TRUSTED_SPECIALIST_SUBS": f'{agents["hr"]["agent_id"]},{agents["it"]["agent_id"]}',
         "POST_LOGOUT_REDIRECT_URI": POST_LOGOUT,
-        "LLM_FALLBACK_MODE": "llm", "OPENAI_BASE_URL": "https://api.openai.com/v1",
-        "OPENAI_API_HEADER": "Authorization", "OPENAI_API_KEY": openai_key, "OPENAI_MODEL": "gpt-4.1",
+        # LLM goes through the WSO2 Agent Manager (SaaS) AI Gateway — OpenAI-
+        # compatible, NOT api.openai.com. The gateway issues OPENAI_BASE_URL +
+        # OPENAI_API_KEY; the key rides in the "api-key" header (not Bearer).
+        # Pass these in the provisioner's env to bake them, else placeholders.
+        "LLM_FALLBACK_MODE": "llm",
+        "OPENAI_BASE_URL": os.environ.get("OPENAI_BASE_URL", "__SET_WSO2_AI_GATEWAY_BASE_URL__"),
+        "OPENAI_API_HEADER": os.environ.get("OPENAI_API_HEADER", "api-key"),
+        "OPENAI_API_KEY": openai_key, "OPENAI_MODEL": os.environ.get("OPENAI_MODEL", "gpt-4.1"),
     })
     write_env("hr_agent", {**common_idp,
         "HR_AGENT_ID": agents["hr"]["agent_id"], "HR_AGENT_SECRET": agents["hr"]["agent_secret"],
@@ -435,12 +442,18 @@ def main():
                "WSO2_IS_INTROSPECT_URL": f"{IS_INTERNAL_BASE}/oauth2/introspect",
                "DISABLE_SSL_VERIFY": "true",
                "INTERNAL_REVOKE_SHARED_SECRET": shared_secret}
+    # REST_VALID_AUDIENCES lets the /api/* REST surface also accept token-A
+    # (aud = orchestrator-mcp-client); the MCP-tool validator stays strict on
+    # the agent's own client id. Emitted into the .env so compose needs no
+    # hard-coded override.
     write_env("hr_server", {**srv_idp,
         "HR_SERVER_EXPECTED_AUD": agents["hr"]["client_id"],
-        "HR_SERVER_TRUSTED_PEER_AGENTS": agents["hr"]["agent_id"]})
+        "HR_SERVER_TRUSTED_PEER_AGENTS": agents["hr"]["agent_id"],
+        "HR_SERVER_REST_VALID_AUDIENCES": mcp_cid})
     write_env("it_server", {**srv_idp,
         "IT_SERVER_EXPECTED_AUD": agents["it"]["client_id"],
-        "IT_SERVER_TRUSTED_PEER_AGENTS": agents["it"]["agent_id"]})
+        "IT_SERVER_TRUSTED_PEER_AGENTS": agents["it"]["agent_id"],
+        "IT_SERVER_REST_VALID_AUDIENCES": mcp_cid})
 
     # creds JSON for inspection (gitignored)
     creds = {"orchestrator_mcp_client": {"client_id": mcp_cid, "client_secret": mcp_sec},
@@ -455,8 +468,10 @@ def main():
     print("  hr-agent               :", agents["hr"]["agent_id"], "/ app", agents["hr"]["client_id"])
     print("  it-agent               :", agents["it"]["agent_id"], "/ app", agents["it"]["client_id"])
     print("\n  Verify:  IS_BASE_URL=%s ./scripts/check-is-config.py" % IS_BASE)
-    if openai_key.startswith("__SET"):
-        print("\n  NOTE: set OPENAI_API_KEY in orchestrator/.env (or re-run with OPENAI_API_KEY=… ).")
+    if openai_key.startswith("__SET") or os.environ.get("OPENAI_BASE_URL", "").startswith("__SET"):
+        print("\n  NOTE: LLM uses the WSO2 Agent Manager AI Gateway. Set OPENAI_BASE_URL +"
+              "\n        OPENAI_API_KEY (api-key header) in orchestrator/.env, or re-run with"
+              "\n        OPENAI_BASE_URL=… OPENAI_API_KEY=… in the provisioner env.")
 
 if __name__ == "__main__":
     main()

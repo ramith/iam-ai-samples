@@ -1,5 +1,10 @@
 # WSO2 Identity Server — Sprint 1 Setup Guide
 
+> **On the `fully-local-setup` branch this manual Console guide is superseded** by the
+> containerized + auto-provisioned local stack — see
+> [`architecture/fully-local-setup-plan.md`](architecture/fully-local-setup-plan.md)
+> and `scripts/provision-is.py`. Kept as the manual/remote reference.
+
 **Audience:** lead engineer configuring WSO2 IS 7.2.0 to host the Sprint 1 demo of the smart-employee-agent POC.
 **Outcome:** a configured IdP + 5 populated `.env` files + a runnable `./scripts/demo-up.sh`.
 **Time budget:** ~45 minutes the first time through.

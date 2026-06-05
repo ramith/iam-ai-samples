@@ -1,19 +1,28 @@
 # Compose topology for the Identity-First AI Agent Governance POC (v4).
+# Fully-local deployment: WSO2 IS + MySQL run as containers (no remote AWS VM).
 #
-# Five services (Sprint 4):
-#   - orchestrator  : SPA host + chat router + CIBA fan-out + reports proxy
-#                     (http://localhost:8090; also 8123 loopback for the
-#                     BCL reverse-SSH tunnel)
+# Infra tier:
+#   - mysql         : WSO2 IS backing store (named volume mysql-data)
+#   - wso2is        : WSO2 Identity Server 7.3.0 (alias wso2is; provisioned by
+#                     scripts/provision-is.py). IS posts back-channel-logout
+#                     in-network to http://orchestrator:8080/backchannel-logout.
+# App tier (Sprint 4):
+#   - orchestrator  : SPA host + chat router + CIBA fan-out + reports proxy + BCL receiver (http://localhost:8090)
 #   - hr_agent      : HR specialist; per-agent CIBA → hr_server MCP tools
 #   - it_agent      : IT specialist; per-agent CIBA → it_server MCP tools
 #   - hr_server     : HR MCP tools + REST (leave, cubicles, reports)
 #   - it_server     : IT MCP tools + REST (assets, reports)
 #
-# The pre-v4 `agent` (5001) and `client` (3001) services were removed in
-# Sprint 4 — the SPA is served by the orchestrator now. Reliable bring-up:
-#   ./scripts/demo-up.sh            # build (cached) + start + smoke
-#   ./scripts/demo-up.sh --clean    # down + no-cache rebuild + start + smoke
-#   ./scripts/demo-down.sh          # stop + remove containers
+# First-time bring-up (see docs/architecture/fully-local-setup-plan.md):
+#   ./scripts/local-setup.sh                 # fetch JDBC driver + WSO2 schema (once)
+#   echo "127.0.0.1 wso2is" | sudo tee -a /etc/hosts   # browser → IS (once)
+#   docker compose up -d mysql wso2is        # infra
+#   python3 scripts/provision-is.py          # configure IS + write the 5 .env files
+#   docker compose up -d --build             # app fleet
+#
+# All IS client-ids/secrets, agent ids/secrets, the inbound audiences, and the
+# shared revocation secret come from the per-service .env files written by
+# scripts/provision-is.py — NOT hard-coded here.
 
 networks:
   demo-net:
@@ -73,7 +82,7 @@ services:
         aliases:
           - wso2is
 
-  # ─── Existing services (unchanged) ─────────────────────────────────────────
+  # ─── App tier ───────────────────────────────────────────────────────────────
   hr_server:
     build:
       context: .
@@ -86,18 +95,9 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8090,http://127.0.0.1:8090}
       - HR_SERVER_HOST=0.0.0.0
       - MCP_ALLOWED_HOSTS="127.0.0.1,localhost,hr_server"
-      # Sprint 4 OQ-3: the REST endpoints (/api/me/leaves, /api/reports/*)
-      # receive token-A whose aud is the orchestrator-mcp-client ID. The
-      # REST validator's audience list = [expected_aud(=hr_agent client)]
-      # + these extras. The MCP-tool validator stays strict (hr_agent only).
-      - HR_SERVER_REST_VALID_AUDIENCES=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
       # Token introspection feature-flagged OFF (denylist-only backstop).
-      # NOTE: config.py reads HR_SERVER_INTROSPECT_ENABLED (default "true"),
-      # so the var MUST carry the HR_SERVER_ prefix for this OFF flag to apply.
+      # config.py reads HR_SERVER_INTROSPECT_ENABLED (default "true").
       - HR_SERVER_INTROSPECT_ENABLED=${HR_SERVER_INTROSPECT_ENABLED:-false}
-      # Sprint 3 3A.2: shared secret for /internal/events fan-out (BLOCK-B simple).
-      # Operator MUST set this in shell or .env (not committed) before `make demo-up`.
-      - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
       - UVICORN_WORKERS=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     healthcheck:
@@ -107,46 +107,32 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    depends_on:
+      wso2is:
+        condition: service_healthy
     networks:
       - demo-net
-
-  # NOTE: the Sprint-1 `agent` (port 5001) and `client` (port 3001) services
-  # were removed in Sprint 4 — they were a pre-v4 scaffold. The SPA is served
-  # by the `orchestrator` at http://localhost:8090; there is no separate
-  # client container. (Old containers can be cleared with `docker compose down`.)
 
   orchestrator:
     build:
       context: .
       dockerfile: orchestrator/Dockerfile
     ports:
-      # Container always listens on 8080 internally; host port 8090
-      # avoids a conflict with a common SSH-tunnel default. Sprint 1
-      # may switch this to 5001 once `agent` service is removed.
+      # Container listens on 8080 internally; host 8090 is the user-facing SPA.
+      # IS posts back-channel-logout in-network to orchestrator:8080 (no tunnel).
       - "8090:8080"
-      # 3B.1.i: additional host port 8123 for the C12 reverse-SSH tunnel
-      # so WSO2 IS's BCL POSTs land on the orchestrator's
-      # /backchannel-logout receiver. Bound to loopback only.
-      - "127.0.0.1:8123:8080"
     env_file:
       - ./orchestrator/.env
     environment:
       - ORCHESTRATOR_HOST=0.0.0.0
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8090,http://127.0.0.1:8090}
       - AGENT_CARDS_DIR=/app/agent_cards
-      # Sprint 3 3A.2: shared secret + fan-out target URLs.
-      - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - HR_AGENT_URL=http://hr_agent:8001
       - IT_AGENT_URL=http://it_agent:8002
       - HR_SERVER_URL=http://hr_server:8000
       - IT_SERVER_URL=http://it_server:8004
-      # 3A.2.2: must be EXACTLY registered as a Callback URL on the
-      # orchestrator-mcp-client app in IS Console. WSO2 IS rejects with
-      # "Post logout URI does not match" otherwise (live-walk 2026-05-09).
-      # Default = orchestrator's port 8090 since the SPA is served from
-      # orchestrator/main.py StaticFiles (the legacy `client:3001` container
-      # is no longer the SPA host).
+      # Must be EXACTLY a registered Callback URL on orchestrator-mcp-client.
       - POST_LOGOUT_REDIRECT_URI=${POST_LOGOUT_REDIRECT_URI:-http://localhost:8090/}
     healthcheck:
       test: ["CMD", "python3", "-c",
@@ -156,10 +142,11 @@ services:
       retries: 3
       start_period: 15s
     # POC constraint: single replica only (per milestone-plan §5.3 + R7 determinism).
-    # CI asserts this; multi-replica needs sticky sessions + Redis-backed state.
     deploy:
       replicas: 1
     depends_on:
+      wso2is:
+        condition: service_healthy
       hr_agent:
         condition: service_healthy
       it_agent:
@@ -178,9 +165,6 @@ services:
     environment:
       - HR_AGENT_HOST=0.0.0.0
       - HR_MCP_SERVER_URL=http://hr_server:8000
-      - HR_EXPECTED_INBOUND_AUD=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
-      # Sprint 3 3A.2.
-      - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
       - UVICORN_WORKERS=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     healthcheck:
@@ -191,6 +175,8 @@ services:
       retries: 3
       start_period: 10s
     depends_on:
+      wso2is:
+        condition: service_healthy
       hr_server:
         condition: service_healthy
     networks:
@@ -207,9 +193,6 @@ services:
     environment:
       - IT_AGENT_HOST=0.0.0.0
       - IT_MCP_SERVER_URL=http://it_server:8004
-      - IT_EXPECTED_INBOUND_AUD=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
-      # Sprint 3 3A.2.
-      - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
       - UVICORN_WORKERS=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     healthcheck:
@@ -220,6 +203,8 @@ services:
       retries: 3
       start_period: 10s
     depends_on:
+      wso2is:
+        condition: service_healthy
       it_server:
         condition: service_healthy
     networks:
@@ -237,15 +222,9 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8090,http://127.0.0.1:8090}
       - IT_SERVER_HOST=0.0.0.0
       - MCP_ALLOWED_HOSTS="127.0.0.1,localhost,it_server"
-      # Sprint 4 OQ-3: REST endpoints (/api/reports/device-assignments)
-      # accept token-A (aud=orchestrator-mcp-client). MCP-tool validator
-      # stays strict (it_agent client only).
-      - IT_SERVER_REST_VALID_AUDIENCES=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
       # Token introspection feature-flagged OFF (denylist-only backstop).
       # config.py reads IT_SERVER_INTROSPECT_ENABLED (default "true").
       - IT_SERVER_INTROSPECT_ENABLED=${IT_SERVER_INTROSPECT_ENABLED:-false}
-      # Sprint 3 3A.2.
-      - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
       - UVICORN_WORKERS=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     healthcheck:
@@ -255,31 +234,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks:
-      - demo-net
-
-  # ─── Sprint 3 spike: BCL capture rig (profile: spike-bcl) ─────────────────
-  # Runs ONLY for the C12 logout capability spike (D3 design input). Gated by
-  # the `spike-bcl` compose profile so `make demo-up` does NOT start it.
-  # Bring up via:  ./scripts/spike-bcl-up.sh
-  #
-  # The listener is reached from the AWS VM (where WSO2 IS lives) via a
-  # reverse SSH tunnel — the laptop runs `autossh -R 8123:localhost:8123 …`
-  # so that `localhost:8123` on the AWS VM forwards back to this container's
-  # published host port (127.0.0.1:8123 on the laptop). See
-  # docs/spikes/c12-bcl-spike-setup.md for first-time setup.
-  bcl-listener:
-    image: python:3.11-slim
-    profiles: ["spike-bcl"]
-    command: ["python", "-u", "/app/bcl_listener.py"]
-    volumes:
-      - ./tools/bcl_listener.py:/app/bcl_listener.py:ro
-      - ./tools/_bcl_log:/data
-    environment:
-      - BCL_LISTEN_PORT=8123
-    # Bind to loopback only so SSH-R reaches it but the laptop's LAN does
-    # not expose the listener.
-    ports:
-      - "127.0.0.1:8123:8123"
+    depends_on:
+      wso2is:
+        condition: service_healthy
     networks:
       - demo-net
