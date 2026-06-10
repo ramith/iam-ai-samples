@@ -22,6 +22,9 @@
 #
 set -euo pipefail
 
+# shellcheck source=lib/common.sh
+source "$(cd "$(dirname "$0")" && pwd)/lib/common.sh"
+
 if [[ $# -ne 1 ]]; then
   echo "usage: $0 <request-id>" >&2
   echo "  hint: $ docker compose logs --tail=2000 orchestrator | grep chat_request" >&2
@@ -38,6 +41,11 @@ if ! [[ "$RID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
   exit 2
 fi
 
+# Resolve the Compose CLI (v2/v1). Without this, a host that has only one of the
+# two yields zero matches (the other errors into /dev/null) and the script
+# wrongly reports "no log lines found".
+detect_compose_cmd || exit 2
+
 SERVICES=(orchestrator hr_agent it_agent hr_server it_server)
 
 # Collect log lines from each service that match the rid, prefix them with
@@ -46,8 +54,8 @@ TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
 for svc in "${SERVICES[@]}"; do
-  # docker compose logs --no-color --no-log-prefix prints raw service stdout/stderr.
-  docker compose logs --no-color --no-log-prefix "$svc" 2>/dev/null \
+  # compose logs --no-color --no-log-prefix prints raw service stdout/stderr.
+  "${COMPOSE_CMD[@]}" logs --no-color --no-log-prefix "$svc" 2>/dev/null \
     | grep -F " ${RID} " \
     | sed "s/^/${svc} | /" \
     >> "$TMP" || true

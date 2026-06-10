@@ -1,0 +1,42 @@
+{
+  "schema_version": "v3-custom",
+  "id": "it_agent",
+  "name": "IT Agent",
+  "description": "Handles IT asset discovery, assignment, and user asset lookups.",
+  "url": "http://it_agent:8002",
+  "oauth_client_id": "it-agent-oauth",
+  "api_version": "1.0.0",
+  "token_validity_seconds": 180,
+  "skills": [
+    {
+      "id": "it.list_available_assets",
+      "name": "List Available Assets",
+      "description": "List IT assets available for assignment.",
+      "scope": "it_assets_read_rest",
+      "args": []
+    },
+    {
+      "id": "it.get_my_assets",
+      "name": "Get My Assets",
+      "description": "Get assets assigned to the current user.",
+      "scope": "it_assets_self_rest",
+      "args": []
+    },
+    {
+      "id": "it.issue_asset",
+      "name": "Issue Asset",
+      "description": "Assign an asset to an employee.",
+      "scope": "it_assets_write_rest",
+      "args": ["asset_id", "employee_id"]
+    }
+  ],
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "auth": {
+    "scheme": "oauth2",
+    "issuer": "https://localhost:9443/oauth2/token",
+    "audience": "http://it_agent:8002"
+  }
+}

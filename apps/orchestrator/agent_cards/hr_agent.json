@@ -1,0 +1,56 @@
+{
+  "schema_version": "v3-custom",
+  "id": "hr_agent",
+  "name": "HR Agent",
+  "description": "Handles HR workflows such as leave balances, leave requests, and approvals.",
+  "url": "http://hr_agent:8001",
+  "oauth_client_id": "hr-agent-oauth",
+  "api_version": "1.0.0",
+  "token_validity_seconds": 120,
+  "skills": [
+    {
+      "id": "hr.read_balance",
+      "name": "Read Leave Balance",
+      "description": "Get the current user's leave balance.",
+      "scope": "hr_self_rest",
+      "args": []
+    },
+    {
+      "id": "hr.read_history",
+      "name": "Read Leave History",
+      "description": "List recent leave requests for the current user.",
+      "scope": "hr_self_rest",
+      "args": []
+    },
+    {
+      "id": "hr.apply_leave",
+      "name": "Apply Leave",
+      "description": "Submit a new leave request.",
+      "scope": "hr_self_rest",
+      "args": ["leave_type", "start_date", "end_date"]
+    },
+    {
+      "id": "hr.approve_leave",
+      "name": "Approve Leave",
+      "description": "Approve a leave request by id.",
+      "scope": "hr_approve_rest",
+      "args": ["leave_id"]
+    },
+    {
+      "id": "hr.reject_leave",
+      "name": "Reject Leave",
+      "description": "Reject a leave request by id with a reason.",
+      "scope": "hr_approve_rest",
+      "args": ["leave_id", "reason"]
+    }
+  ],
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "auth": {
+    "scheme": "oauth2",
+    "issuer": "https://localhost:9443/oauth2/token",
+    "audience": "http://hr_agent:8001"
+  }
+}

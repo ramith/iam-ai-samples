@@ -1,9 +1,9 @@
 # Compose topology for the Identity-First AI Agent Governance POC (v4).
 #
-# Five services (Sprint 4):
+# Six services (local IdP + app services):
+#   - wso2is        : WSO2 Identity Server (official wso2/wso2is image from Docker Hub)
 #   - orchestrator  : SPA host + chat router + CIBA fan-out + reports proxy
-#                     (http://localhost:8090; also 8123 loopback for the
-#                     BCL reverse-SSH tunnel)
+#                     (http://localhost:8090)
 #   - hr_agent      : HR specialist; per-agent CIBA → hr_server MCP tools
 #   - it_agent      : IT specialist; per-agent CIBA → it_server MCP tools
 #   - hr_server     : HR MCP tools + REST (leave, cubicles, reports)
@@ -19,25 +19,62 @@ networks:
   demo-net:
     driver: bridge
 
+volumes:
+  wso2is_data:
+
 services:
+  wso2is:
+    build:
+      context: ./wso2-is
+      dockerfile: Dockerfile
+      args:
+        # WSO2 IS version (>= 7.3.0). Pulls wso2/wso2is:<version>-alpine from
+        # Docker Hub. Override via env: WSO2IS_VERSION=7.4.0 ./start.sh
+        WSO2IS_VERSION: ${WSO2IS_VERSION:-7.3.0}
+    environment:
+      - BOOTSTRAP_ON_START=${WSO2_BOOTSTRAP_ON_START:-true}
+      - BOOTSTRAP_WAIT_SECONDS=${WSO2_BOOTSTRAP_WAIT_SECONDS:-300}
+      - BOOTSTRAP_SCRIPT=/workspace/scripts/bootstrap-wso2is-entrypoint.sh
+      - IS_BASE_URL=https://localhost:9443
+      - IS_ADMIN_USER=${IS_ADMIN_USER:-admin}
+      - IS_ADMIN_PASS=${IS_ADMIN_PASS:-admin}
+      - IS_AGENT_OWNER=${IS_AGENT_OWNER:-admin@carbon.super}
+      # NOTE: ENABLE_UAEPASS is NOT passed here — the bootstrap reads it straight
+      # from config/master.env (mounted at /workspace/config/master.env), making
+      # master.env the single source of truth (no shell/compose env dependency).
+    ports:
+      - "9443:9443"
+      - "9763:9763"
+    volumes:
+      - ./:/workspace
+      - wso2is_data:/opt/wso2is/repository/database
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /workspace/.bootstrap/wso2is.ready && curl -skf https://localhost:9443/oauth2/jwks >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks:
+      - demo-net
+
   # ─── Existing services (unchanged) ─────────────────────────────────────────
   hr_server:
     build:
       context: .
-      dockerfile: hr_server/Dockerfile
+      dockerfile: apps/hr_server/Dockerfile
     ports:
       - "127.0.0.1:8000:8000"  # BLOCK-D: bind loopback only
     env_file:
-      - ./hr_server/.env
+      - ./apps/hr_server/.env
     environment:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8090,http://127.0.0.1:8090}
+      - WSO2_IS_BASE_URL=${WSO2_IS_BASE_URL:-https://wso2is:9443}
+      - AUTH_ISSUER=${AUTH_ISSUER:-https://localhost:9443/oauth2/token}
+      - JWKS_URL=${JWKS_URL:-https://wso2is:9443/oauth2/jwks}
+      - WSO2_IS_INTROSPECT_URL=${WSO2_IS_INTROSPECT_URL:-https://wso2is:9443/oauth2/introspect}
+      - DISABLE_SSL_VERIFY=${DISABLE_SSL_VERIFY:-true}
       - HR_SERVER_HOST=0.0.0.0
       - MCP_ALLOWED_HOSTS="127.0.0.1,localhost,hr_server"
-      # Sprint 4 OQ-3: the REST endpoints (/api/me/leaves, /api/reports/*)
-      # receive token-A whose aud is the orchestrator-mcp-client ID. The
-      # REST validator's audience list = [expected_aud(=hr_agent client)]
-      # + these extras. The MCP-tool validator stays strict (hr_agent only).
-      - HR_SERVER_REST_VALID_AUDIENCES=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
       # Token introspection feature-flagged OFF (denylist-only backstop).
       # NOTE: config.py reads HR_SERVER_INTROSPECT_ENABLED (default "true"),
       # so the var MUST carry the HR_SERVER_ prefix for this OFF flag to apply.
@@ -54,8 +91,13 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    volumes:
+      - ./apps/hr_server/.env:/app/hr_server/.env
     networks:
       - demo-net
+    depends_on:
+      wso2is:
+        condition: service_healthy
 
   # NOTE: the Sprint-1 `agent` (port 5001) and `client` (port 3001) services
   # were removed in Sprint 4 — they were a pre-v4 scaffold. The SPA is served
@@ -65,21 +107,23 @@ services:
   orchestrator:
     build:
       context: .
-      dockerfile: orchestrator/Dockerfile
+      dockerfile: apps/orchestrator/Dockerfile
     ports:
       # Container always listens on 8080 internally; host port 8090
       # avoids a conflict with a common SSH-tunnel default. Sprint 1
       # may switch this to 5001 once `agent` service is removed.
       - "8090:8080"
-      # 3B.1.i: additional host port 8123 for the C12 reverse-SSH tunnel
-      # so WSO2 IS's BCL POSTs land on the orchestrator's
-      # /backchannel-logout receiver. Bound to loopback only.
-      - "127.0.0.1:8123:8080"
     env_file:
-      - ./orchestrator/.env
+      - ./apps/orchestrator/.env
     environment:
       - ORCHESTRATOR_HOST=0.0.0.0
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8090,http://127.0.0.1:8090}
+      - WSO2_IS_BASE_URL=${WSO2_IS_BASE_URL:-https://wso2is:9443}
+      - WSO2_IS_ISSUER=${WSO2_IS_ISSUER:-https://localhost:9443/oauth2/token}
+      - WSO2_IS_JWKS_URL=${WSO2_IS_JWKS_URL:-https://wso2is:9443/oauth2/jwks}
+      - IS_ADMIN_USER=${IS_ADMIN_USER:-admin}
+      - IS_ADMIN_PASS=${IS_ADMIN_PASS:-admin}
+      - IDP_INSECURE_TLS=${IDP_INSECURE_TLS:-1}
       - AGENT_CARDS_DIR=/app/agent_cards
       # Sprint 3 3A.2: shared secret + fan-out target URLs.
       - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
@@ -95,6 +139,9 @@ services:
       # orchestrator/main.py StaticFiles (the legacy `client:3001` container
       # is no longer the SPA host).
       - POST_LOGOUT_REDIRECT_URI=${POST_LOGOUT_REDIRECT_URI:-http://localhost:8090/}
+      # NOTE: ENABLE_UAEPASS is NOT passed here — it's rendered into
+      # apps/orchestrator/.env from master.env (env_file above), so master.env is
+      # the single source of truth for the SPA branding flag.
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz', timeout=3)"]
@@ -106,10 +153,15 @@ services:
     # CI asserts this; multi-replica needs sticky sessions + Redis-backed state.
     deploy:
       replicas: 1
+    volumes:
+      - ./apps/orchestrator/.env:/app/orchestrator/.env
+      - ./apps/orchestrator/agent_cards:/app/agent_cards
     depends_on:
       hr_agent:
         condition: service_healthy
       it_agent:
+        condition: service_healthy
+      wso2is:
         condition: service_healthy
     networks:
       - demo-net
@@ -117,15 +169,20 @@ services:
   hr_agent:
     build:
       context: .
-      dockerfile: hr_agent/Dockerfile
+      dockerfile: apps/hr_agent/Dockerfile
     ports:
       - "127.0.0.1:8001:8001"  # BLOCK-D: bind loopback only; receiver not on host LAN
     env_file:
-      - ./hr_agent/.env
+      - ./apps/hr_agent/.env
     environment:
       - HR_AGENT_HOST=0.0.0.0
+      - WSO2_IS_BASE_URL=${WSO2_IS_BASE_URL:-https://wso2is:9443}
+      - WSO2_IS_ISSUER=${WSO2_IS_ISSUER:-https://localhost:9443/oauth2/token}
+      - WSO2_IS_JWKS_URL=${WSO2_IS_JWKS_URL:-https://wso2is:9443/oauth2/jwks}
+      - IDP_INSECURE_TLS=${IDP_INSECURE_TLS:-1}
       - HR_MCP_SERVER_URL=http://hr_server:8000
-      - HR_EXPECTED_INBOUND_AUD=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
+      # hr->it onboarding coordination peer endpoint (non-CIBA).
+      - IT_AGENT_PEER_URL=http://it_agent:8002
       # Sprint 3 3A.2.
       - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
       - UVICORN_WORKERS=1
@@ -137,8 +194,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    volumes:
+      - ./apps/hr_agent/.env:/app/hr_agent/.env
     depends_on:
       hr_server:
+        condition: service_healthy
+      wso2is:
         condition: service_healthy
     networks:
       - demo-net
@@ -146,15 +207,18 @@ services:
   it_agent:
     build:
       context: .
-      dockerfile: it_agent/Dockerfile
+      dockerfile: apps/it_agent/Dockerfile
     ports:
       - "127.0.0.1:8002:8002"  # BLOCK-D: bind loopback only
     env_file:
-      - ./it_agent/.env
+      - ./apps/it_agent/.env
     environment:
       - IT_AGENT_HOST=0.0.0.0
+      - WSO2_IS_BASE_URL=${WSO2_IS_BASE_URL:-https://wso2is:9443}
+      - WSO2_IS_ISSUER=${WSO2_IS_ISSUER:-https://localhost:9443/oauth2/token}
+      - WSO2_IS_JWKS_URL=${WSO2_IS_JWKS_URL:-https://wso2is:9443/oauth2/jwks}
+      - IDP_INSECURE_TLS=${IDP_INSECURE_TLS:-1}
       - IT_MCP_SERVER_URL=http://it_server:8004
-      - IT_EXPECTED_INBOUND_AUD=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
       # Sprint 3 3A.2.
       - INTERNAL_REVOKE_SHARED_SECRET=${INTERNAL_REVOKE_SHARED_SECRET:-}
       - UVICORN_WORKERS=1
@@ -166,8 +230,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    volumes:
+      - ./apps/it_agent/.env:/app/it_agent/.env
     depends_on:
       it_server:
+        condition: service_healthy
+      wso2is:
         condition: service_healthy
     networks:
       - demo-net
@@ -175,19 +243,20 @@ services:
   it_server:
     build:
       context: .
-      dockerfile: it_server/Dockerfile
+      dockerfile: apps/it_server/Dockerfile
     ports:
       - "127.0.0.1:8004:8004"  # BLOCK-D: bind loopback only
     env_file:
-      - ./it_server/.env
+      - ./apps/it_server/.env
     environment:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8090,http://127.0.0.1:8090}
+      - WSO2_IS_BASE_URL=${WSO2_IS_BASE_URL:-https://wso2is:9443}
+      - AUTH_ISSUER=${AUTH_ISSUER:-https://localhost:9443/oauth2/token}
+      - JWKS_URL=${JWKS_URL:-https://wso2is:9443/oauth2/jwks}
+      - WSO2_IS_INTROSPECT_URL=${WSO2_IS_INTROSPECT_URL:-https://wso2is:9443/oauth2/introspect}
+      - DISABLE_SSL_VERIFY=${DISABLE_SSL_VERIFY:-true}
       - IT_SERVER_HOST=0.0.0.0
       - MCP_ALLOWED_HOSTS="127.0.0.1,localhost,it_server"
-      # Sprint 4 OQ-3: REST endpoints (/api/reports/device-assignments)
-      # accept token-A (aud=orchestrator-mcp-client). MCP-tool validator
-      # stays strict (it_agent client only).
-      - IT_SERVER_REST_VALID_AUDIENCES=${ORCHESTRATOR_MCP_CLIENT_ID:-8SDRXOI_4zOrNBgV4KUUfDPs3Tsa}
       # Token introspection feature-flagged OFF (denylist-only backstop).
       # config.py reads IT_SERVER_INTROSPECT_ENABLED (default "true").
       - IT_SERVER_INTROSPECT_ENABLED=${IT_SERVER_INTROSPECT_ENABLED:-false}
@@ -202,31 +271,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    networks:
-      - demo-net
-
-  # ─── Sprint 3 spike: BCL capture rig (profile: spike-bcl) ─────────────────
-  # Runs ONLY for the C12 logout capability spike (D3 design input). Gated by
-  # the `spike-bcl` compose profile so `make demo-up` does NOT start it.
-  # Bring up via:  ./scripts/spike-bcl-up.sh
-  #
-  # The listener is reached from the AWS VM (where WSO2 IS lives) via a
-  # reverse SSH tunnel — the laptop runs `autossh -R 8123:localhost:8123 …`
-  # so that `localhost:8123` on the AWS VM forwards back to this container's
-  # published host port (127.0.0.1:8123 on the laptop). See
-  # docs/spikes/c12-bcl-spike-setup.md for first-time setup.
-  bcl-listener:
-    image: python:3.11-slim
-    profiles: ["spike-bcl"]
-    command: ["python", "-u", "/app/bcl_listener.py"]
     volumes:
-      - ./tools/bcl_listener.py:/app/bcl_listener.py:ro
-      - ./tools/_bcl_log:/data
-    environment:
-      - BCL_LISTEN_PORT=8123
-    # Bind to loopback only so SSH-R reaches it but the laptop's LAN does
-    # not expose the listener.
-    ports:
-      - "127.0.0.1:8123:8123"
+      - ./apps/it_server/.env:/app/it_server/.env
     networks:
       - demo-net
+    depends_on:
+      wso2is:
+        condition: service_healthy
+
+

@@ -1,6 +1,34 @@
+# Applies to builds whose context is the repo root (the 5 Python services).
+# The wso2is image uses its own context (./wso2-is), so excluding the
+# ~400 MB IS pack here does NOT affect that build — it only keeps it out of the
+# Python services' build context (was 409 MB -> a few MB), speeding every build.
+
+# Heavy / unrelated to the Python service images
+wso2-is/
+tempz/
+docs/
+platform/
+.bootstrap/
+.git/
+.github/
+.claude/
+.vscode/
+
+# Not needed at image-build time (provided at runtime via env_file / volumes)
+config/
+scripts/
+
+# Python / editor / OS cruft
 **/.venv
 **/__pycache__
-**/.env
 **/*.pyc
-**/.git
+**/.pytest_cache
+**/.mypy_cache
+**/.env
 **/.DS_Store
+
+# Docs & scratch
+*.md
+**/README.md
+laptop_setup_guide*.md
+data.txt

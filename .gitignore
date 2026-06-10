@@ -1,99 +1,80 @@
-# Compiled class file
-*.class
-.idea/
+# ============================================================================
+# srt-emp — Smart Employee Agent demo (.gitignore)
+# ============================================================================
 
-# Log file
+# ── Secrets & environment (NEVER commit) ───────────────────────────────────
+# Per-service runtime env files (rendered from master / templates). The
+# committed *.env.example templates carry safe defaults.
+**/.env
+/.env
+config/master.env
+# Test/probe credential files
+scripts/probes/.test-users.env
+idp_capability_test/.substrate.env
+# Keys & certs — leaking IS signing keys = full IdP compromise
+*.pem
+*.p12
+*.jks
+wso2_private*
+
+# ── Dev-only / local overrides ─────────────────────────────────────────────
+# NOTE: docker-compose.override.yml IS committed — it's the standard dev setup
+# (source mounts + uvicorn --reload + per-service ENABLE_API_TRACES). No secrets.
+_local/
+tempz/
+/.vm-tunnel.pid
+data.txt
+.vscode/
+platform/
+
+# ── WSO2 IS pack zip (legacy; image now pulled from Docker Hub) ─────────────
+# The IS server is no longer built from a local zip — wso2-is/Dockerfile bases
+# off the official wso2/wso2is:<version>-alpine image. Keep ignoring any stray
+# pack zip so an old/downloaded copy can never be committed by accident.
+**/wso2is-*.zip
+# NOTE: the small connector JAR, logo, error JSP (wso2-is/uaepass/), the
+# entrypoint (wso2-is/entrypoint/), and the default login-page assets
+# (wso2-is/default/ — smart-employee-logo.jpeg + sample-payload.json branding
+# base) ARE committed — they're the build inputs.
+
+# ── Runtime cruft / logs / markers ─────────────────────────────────────────
 *.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+is_server_logs/*.log
+*.lck
+.bootstrap/
 hs_err_pid*
 replay_pid*
+tools/_bcl_log/*.log
 
-# Python virtual environments
-venv/
-.venv/
-*/venv/
-*/.venv/
-
-*# Python cache files
+# ── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*.egg-info/
+.venv/
+venv/
+**/.venv/
+**/venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Node.js dependencies
+# ── Node / frontend (SPA tooling, if used) ─────────────────────────────────
 node_modules/
-*/node_modules/
+**/node_modules/
+dist/
+build/
+out/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+.eslintcache
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Node.js build outputs
-dist/
-build/
-out/
-.next/
-.nuxt/
-.output/
-
-# Node.js cache directories
-.npm/
-.yarn/
-.pnp.*
-.yarn/cache/
-.yarn/unplugged/
-.yarn/build-state.yml
-.yarn/install-state.gz
-
-# TypeScript cache
-*.tsbuildinfo
-
-# ESLint cache
-.eslintcache
-
-# Parcel cache
-.cache/
-.parcel-cache/
-
-# Webpack bundle analyzer
-bundle-analyzer-report.html
-
-# environment file
-**/.env
-
+# ── OS / IDE ───────────────────────────────────────────────────────────────
 .DS_Store
-
-# ---- merged from smart-employee-agent/.gitignore (project rules) ----
-/.env
-/.spike-bcl-autossh.log
-/.spike-bcl-autossh.pid
-/.vm-tunnel.pid
-/tools/_bcl_log/*.log
-# WSO2 IS log artifacts dumped into is_server_logs/ (runtime cruft — never commit)
-*.lck
-is_server_logs/*.log
-idp_capability_test/.substrate.env
-idp_capability_test/.venv/
-scripts/probes/.test-users.env
-
-# 3B.1.h: extracted IS signing material for the synth-bcl manual-verify
-# path. This is the same private key that signs every JWT IS issues; if
-# any of these files leak, treat as full IdP key compromise (see
-# scripts/synth-bcl.py docstring + scripts/scrub-bcl-key.sh).
-*.pem
-*.p12
-wso2_private*
-_local/
+**/.DS_Store
+.idea/
+*.iml
+wso2-is/default/sample-payload.json

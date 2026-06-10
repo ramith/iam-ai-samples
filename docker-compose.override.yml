@@ -1,0 +1,55 @@
+# Development override — volume-mounts source so uvicorn --reload picks up
+# changes without a docker-compose build.
+#
+# Usage:  docker-compose up -d          (auto-applied alongside docker-compose.yml)
+# Remove: docker-compose -f docker-compose.yml up -d   (skips this file)
+#
+# NOTE: requirements.txt changes still require a rebuild:
+#   docker-compose build <service> && docker-compose up -d <service>
+
+services:
+
+  orchestrator:
+    # ENABLE_API_TRACES is read from apps/orchestrator/.env (env_file).
+    environment:
+      SESSION_PERSIST_PATH: /tmp/orchestrator_sessions.json
+    volumes:
+      - ./apps/orchestrator:/app/orchestrator
+      - ./apps/client/app.js:/app/client_static/app.js
+      - ./apps/client/index.html:/app/client_static/index.html
+      - ./apps/client/styles.css:/app/client_static/styles.css
+      - ./libs/common:/app/common
+    # Launcher path becomes sys.argv[0] → Traceloop OTEL service.name=orchestrator.
+    command: ["amp-instrument", "python", "/app/orchestrator/svc-orchestrator.py"]
+
+  hr_agent:
+    # ENABLE_API_TRACES is read from apps/hr_agent/.env (env_file).
+    volumes:
+      - ./apps/hr_agent:/app/hr_agent
+      - ./libs/common:/app/common
+    command: ["amp-instrument", "python", "/app/hr_agent/svc-hr_agent.py"]
+
+  it_agent:
+    # ENABLE_API_TRACES is read from apps/it_agent/.env (env_file).
+    volumes:
+      - ./apps/it_agent:/app/it_agent
+      - ./libs/common:/app/common
+    command: ["amp-instrument", "python", "/app/it_agent/svc-it_agent.py"]
+
+  hr_server:
+    volumes:
+      - ./apps/hr_server:/app/hr_server
+      - ./libs/common:/app/common
+    command: >
+      python -m uvicorn hr_server.main:create_app
+      --factory --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/hr_server --reload-dir /app/common
+
+  it_server:
+    volumes:
+      - ./apps/it_server:/app/it_server
+      - ./libs/common:/app/common
+    command: >
+      python -m uvicorn it_server.main:create_app
+      --factory --host 0.0.0.0 --port 8004
+      --reload --reload-dir /app/it_server --reload-dir /app/common
